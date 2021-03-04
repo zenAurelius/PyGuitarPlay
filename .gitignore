@@ -127,4 +127,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-songbook/Chiquita.mid
+songbook/*

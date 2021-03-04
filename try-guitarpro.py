@@ -1,23 +1,27 @@
 import guitarpro
 
 
-demo = guitarpro.parse('./songbook/Johnny Cash - I Walk The Line (ver 5).gp5')
+demo = guitarpro.parse('./songbook/daytripper_riff.gp5')
 print(demo.artist)
 print(demo.tracks)
+print(demo.tempo)
+#for mh in demo.measureHeaders:
+#	print(mh.timeSignature)
 for t in demo.tracks :
 	print(t.name)
 
-g = demo.tracks[1]
+g = demo.tracks[0]
 for s in g.strings :
 	print(s)
+	print(s.number)
+	print(s.value)
 print()
-
-m = g.measures[0]
+print(g)
+m = g.measures[2]
+print(m.header.timeSignature)
+print(m)
 v = m.voices[0]
 for b in v.beats :
 	print(b.duration)
-	for n in b.notes :
-		print(n)
-		print(n.string)
-		print(n.value)
+	print(b.notes)
 	print()
