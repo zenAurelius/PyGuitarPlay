@@ -19,7 +19,7 @@ class Track:
 		self.set_beats_in_mesure(0)
 		self.notes_on = []
 		self.measures = []
-		self.notes = []
+		#self.measures.append({'num': -1, 'notes':[]})
 		for i, m in enumerate(gp_track.measures) :
 			self.measures.append({'num': i, 'notes':[]})
 			ticks = 0
@@ -34,12 +34,12 @@ class Track:
 						p_note = self.get_previous_note(i, n.string)
 						p_note['tick_stop'] = tick_end + i * TICKS_PER_MEASURE
 					note = self.note_to_midi(n)
+					note['measure'] = i
 					note['tick_start'] = tick_top + i * TICKS_PER_MEASURE
 					note['tick_stop'] = tick_end + i * TICKS_PER_MEASURE
 					self.measures[i]['notes'].append(note)
 				ticks = tick_end
-		# repassage pour lier les notes 'tie'
-		#for i,m in enumerate(self.measures) :
+		
 
 	def get_previous_note(self, measure, string):
 		for nm in range(measure, -1, -1) :
@@ -82,12 +82,6 @@ class Track:
 				return self.notes_to_midi(self.get_measure(m+1).voices[0].beats[0].notes)
 		else:
 			return self.notes_to_midi(self.get_measure(m).voices[0].beats[next_id].notes)
-
-	def get_measures_notes(self, m_start, m_end) :
-		notes = []
-		for m in range(m_start, m_end) :
-			if m < 0 or m > len(self.track.measures) -1 :
-				continue
 			
 	def get_beat(self, m) :
 		return self.get_measure(m).voices[0].beats[self.current_beat]
@@ -96,7 +90,7 @@ class Track:
 		return [{'value':(self.tuning[note.string - 1] + note.value), 'type':note.type, 'string': note.string} for note in notes]
 
 	def note_to_midi(self, note) :
-		return {'value':(self.tuning[note.string - 1] + note.value), 'type':note.type, 'string': note.string, 'fret':note.value}
+		return {'value':(self.tuning[note.string - 1] + note.value), 'type':note.type, 'string': note.string, 'fret':note.value, 'on': False}
 
 	def get_beat_notes(self, m):
 		return [{'value':(self.tuning[note.string - 1] + note.value), 'type':note.type, 'string': note.string} for note in self.get_beat(m).notes]
@@ -105,16 +99,40 @@ class Track:
 class Guitarician :
 	def __init__(self) :
 		self.outport = None
+
 		self.tracks = []
+
 		self.time_in_mesure = 0
-		self.time_in_song = 0
+		self.ticks_in_mesure = 0
+		self.ticks_per_ms = 20
+
 		self.current_measure = 0
 		self.measure_started = False
 		self.is_playing = False
-		self.ticks_per_ms = 20
+		
 		self.tempo = 0
 		self.tempo_modifier = 1.0
 		self.main_track = None
+
+	def play_track(self, track, channel) :
+		# notes off / on de la mesure
+		notes_off = [note for note in track.measures[self.current_measure]['notes'] if not note['on'] and note['type'] != gp.NoteType.tie]
+		#
+		ticks = self.ticks_in_mesure + self.current_measure * TICKS_PER_MEASURE
+		for n in notes_off :
+			print(n['tick_start'])
+			if ticks >= n['tick_start'] and ticks <= n['tick_stop'] :
+				self.outport.send(Message('note_on', note=n['value'], channel=channel, velocity=track.channel.volume, time=0))
+				n['on'] = True
+				track.notes_on.append(n)
+		notes_down = []
+		for n in track.notes_on :
+			if ticks > n['tick_stop'] :
+				self.outport.send(Message('note_off', note=n['value'], channel=channel, velocity=track.channel.volume, time=0))
+				n['on'] = False
+				notes_down.append(n)
+		for n in notes_down :
+			track.notes_on.remove(n)
 
 	def beat_on(self, track, channel) :
 		#print(track.get_beat_notes(self.current_measure))
@@ -147,23 +165,17 @@ class Guitarician :
 			return False
 		ended = False
 		for i, track in enumerate(self.tracks) :
-			ticks_in_mesure = int(self.time_in_mesure / self.ticks_per_ms)
-			#print(ticks_in_mesure)
+
+			self.play_track(track, i)
 			
-			if not self.measure_started :
-				print('mesure ' + str(self.current_measure))
-				for n in self.main_track.measures[self.current_measure]['notes'] : 
-					print(n)
-				self.beat_on(track, i)
-			
-			if track.beats_in_mesure[track.current_beat] <= ticks_in_mesure :
-				self.beat_off(track, i)
+			if track.beats_in_mesure[track.current_beat] <= self.ticks_in_mesure :
+				#self.beat_off(track, i)
 				if track.current_beat < len(track.get_beats_in_measure(self.current_measure)) - 1 :
 					track.current_beat += 1
-					self.beat_on(track, i)
+					#self.beat_on(track, i)
 
 		self.measure_started = True
-		if(ticks_in_mesure >= TICKS_PER_MEASURE):	
+		if(self.ticks_in_mesure >= TICKS_PER_MEASURE):	
 			self.current_measure += 1
 			if self.current_measure == self.tracks[0].get_nb_measures() :
 				ended = True
@@ -190,7 +202,7 @@ class Guitarician :
 		song = gp.parse('./songbook/daytripper_riff.gp5')
 		self.tempo = song.tempo
 		self.ticks_per_ms = 2000 / self.tempo
-		for i, t in enumerate(song.tracks):
+		for i, t in enumerate(song.tracks[0:1]):
 			track = Track(t)
 			self.tracks.append(track)
 			self.outport.send(Message('program_change', channel=i, program=track.channel.instrument))
@@ -212,14 +224,13 @@ class Guitarician :
 						self.ticks_per_ms = 2000 / (self.tempo * self.tempo_modifier)
 					else:
 						self.is_playing = True
-			ticks_in_song = 0
-			ticks_in_mesure = 0
+
+			self.ticks_in_mesure = 0
 			if not ended:
 				#print(self.is_playing)
 				if self.is_playing :
 					self.time_in_mesure += clock.get_time()
-					self.time_in_song += clock.get_time()
-					ticks_in_mesure = int(self.time_in_mesure / self.ticks_per_ms)
+					self.ticks_in_mesure = int(self.time_in_mesure / self.ticks_per_ms)
 
 
 			screen.fill((29, 104, 135))
@@ -229,7 +240,7 @@ class Guitarician :
 			#MEASURES
 			measure_width = SCREEN_WIDTH / 2.5
 			tick_width = measure_width / TICKS_PER_MEASURE
-			first_measure = - tick_width * ticks_in_mesure
+			first_measure = - tick_width * self.ticks_in_mesure
 			#print(first_measure)
 			#print(first_measure)
 			for nm in range(-1, 4) :
