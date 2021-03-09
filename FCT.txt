@@ -7,5 +7,6 @@
 007 [-] : nom accord d'un stroke
 008 [-] : gestion volume de base
 009 [-] : menu son = juste principale / tout sauf principale / tout
-010 [-] : ajouter mesure vide au début
+010 [x] : ajouter mesure vide au début
 011 [-] : ajouter un track 'metronome'
+012 [-] : prise en compte de la signature rythmique

@@ -9,6 +9,8 @@ TICKS_PER_MEASURE = 120
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
+
+NB_EMPTY_MEASURE = 2
 class Track:
 	def __init__(self, gp_track) :
 		self.tuning = [s.value for s in gp_track.strings]
@@ -19,9 +21,11 @@ class Track:
 
 		self.notes_on = []
 		self.measures = []
-		#self.measures.append({'num': -1, 'notes':[]})
+		for i in range(NB_EMPTY_MEASURE) :
+			self.measures.append({'num': 0, 'notes':[]})
 		for i, m in enumerate(gp_track.measures) :
-			self.measures.append({'num': i, 'notes':[]})
+			mn = i + NB_EMPTY_MEASURE
+			self.measures.append({'num': mn, 'notes':[]})
 			ticks = 0
 			for b in m.voices[0].beats:
 				tick_top = ticks
@@ -31,13 +35,13 @@ class Track:
 				tick_end = tick_top + tick_duration
 				for n in b.notes : 
 					if n.type == gp.NoteType.tie :
-						p_note = self.get_previous_note(i, n.string)
-						p_note['tick_stop'] = tick_end + i * TICKS_PER_MEASURE
+						p_note = self.get_previous_note(mn, n.string)
+						p_note['tick_stop'] = tick_end + (mn) * TICKS_PER_MEASURE
 					note = self.note_to_midi(n)
-					note['measure'] = i
-					note['tick_start'] = tick_top + i * TICKS_PER_MEASURE
-					note['tick_stop'] = tick_end + i * TICKS_PER_MEASURE
-					self.measures[i]['notes'].append(note)
+					note['measure'] = mn
+					note['tick_start'] = tick_top + mn * TICKS_PER_MEASURE
+					note['tick_stop'] = tick_end + mn * TICKS_PER_MEASURE
+					self.measures[mn]['notes'].append(note)
 				ticks = tick_end
 		
 
