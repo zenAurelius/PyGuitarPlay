@@ -3,6 +3,7 @@ import guitarpro as gp
 import mido
 from mido import Message
 import time
+import json
 
 TICKS_PER_MEASURE = 120
 
@@ -72,6 +73,9 @@ class Guitarician :
 		self.tempo = 0
 		self.tempo_modifier = 1.0
 		self.main_track = None
+
+		with open('params.json') as json_file:
+			self.params = json.load(json_file)
 
 	def play_track(self, track) :
 		# notes off / on de la mesure
@@ -143,12 +147,12 @@ class Guitarician :
 		self.outport = mido.open_output()
 		self.font = pygame.font.SysFont(None, 24)
 		# Read file, get all notes, convert to something midi compatible
-		song = gp.parse('./songbook/daytripper_riff.gp5')
+		song = gp.parse('./songbook/' + self.params['file'])
 		self.tempo = song.tempo
 		self.ticks_per_ms = 2000 / self.tempo
 		for i, t in enumerate(song.tracks):
 			track = Track(t)
-			track.volume = 50
+			track.volume = 100
 			self.tracks.append(track)
 			self.outport.send(Message('program_change', channel=track.channel, program=track.midi.instrument))
 			
@@ -239,6 +243,6 @@ class Guitarician :
 		pygame.quit()
 		quit()
 
-	
-s = Guitarician()
-s.start()
+if __name__ == '__main__':	
+	s = Guitarician()
+	s.start()

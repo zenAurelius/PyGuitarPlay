@@ -1,7 +1,11 @@
-001 : launcher pour choisir le fichier
-002 : pause
-003 : menu lecture / pause [002]
-004 : tick changement tempo
-005 : menu tempo
-006 : groupe de note = stroke
-007 : nom accord d'un stroke
+001 [x] : launcher pour choisir le fichier
+002 [-] : pause
+003 [-] : menu lecture / pause [002]
+004 [-] : tick changement tempo
+005 [-] : menu tempo
+006 [-] : groupe de note = stroke
+007 [-] : nom accord d'un stroke
+008 [-] : gestion volume de base
+009 [-] : menu son = juste principale / tout sauf principale / tout
+010 [-] : ajouter mesure vide au début
+011 [-] : ajouter un track 'metronome'
