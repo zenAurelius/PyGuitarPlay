@@ -103,7 +103,7 @@ class Guitarician :
 		ended = False
 		if not self.is_playing :
 			return False
-		for i, track in enumerate(self.tracks) :
+		for track in self.tracks :
 			self.play_track(track)
 
 		if(self.ticks_in_mesure >= TICKS_PER_MEASURE):	
@@ -113,7 +113,7 @@ class Guitarician :
 				if self.current_measure == len(self.tracks[0].measures) :
 					ended = True
 				else :
-					for i, track in enumerate(self.tracks) :
+					for track in self.tracks :
 						self.play_track(track)
 		return ended
 
@@ -150,7 +150,7 @@ class Guitarician :
 		song = gp.parse('./songbook/' + self.params['file'])
 		self.tempo = song.tempo
 		self.ticks_per_ms = 2000 / self.tempo
-		for i, t in enumerate(song.tracks):
+		for t in song.tracks:
 			track = Track(t)
 			track.volume = 100
 			self.tracks.append(track)

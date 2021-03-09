@@ -1,5 +1,5 @@
 from tkinter import filedialog
-from tkinter import *
+from tkinter import Tk
 import os
 import json
 import start
@@ -12,6 +12,6 @@ with open('params.json') as json_file:
 params['file'] = os.path.basename(os.path.normpath(root.filename))
 with open('params.json', 'w') as outfile:
 	json.dump(params, outfile)
-
+root.destroy()
 s = start.Guitarician()
 s.start()
