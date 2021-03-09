@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 songbook/*
 .vscode/settings.json
+params.json

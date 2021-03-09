@@ -10,3 +10,4 @@
 010 [x] : ajouter mesure vide au début
 011 [-] : ajouter un track 'metronome'
 012 [-] : prise en compte de la signature rythmique
+013 [x] : changement de couleur des notes en cours

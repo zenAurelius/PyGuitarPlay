@@ -228,7 +228,10 @@ class Guitarician :
 					note_heigt = int(space_string)
 					note_x = 100 + first_measure + nm * measure_width + (n['tick_start'] - (self.current_measure + nm) * TICKS_PER_MEASURE) * tick_width
 					note_y = (n['string'] - 1) * space_string
-					pygame.draw.ellipse(board, (120,70,200), (note_x, note_y, note_width, note_heigt))
+					note_color = (120,70,200)
+					if n['on'] :
+						note_color = (70,120,200)
+					pygame.draw.ellipse(board, note_color, (note_x, note_y, note_width, note_heigt))
 					img = self.font.render(str(n['fret']), True, (255,255,255))
 					board.blit(img, (note_x + note_width / 2 - img.get_rect().width / 2, note_y + note_heigt / 3))
 			
