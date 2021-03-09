@@ -10,13 +10,12 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 class Track:
 	def __init__(self, gp_track) :
-		self.beats = []
-		self.current_beat = 0
 		self.tuning = [s.value for s in gp_track.strings]
-		self.channel = gp_track.channel
-		self.track = gp_track
-		self.beats_in_mesure = []
-		self.set_beats_in_mesure(0)
+		self.midi = gp_track.channel
+		self.volume = gp_track.channel.volume
+		self.channel = gp_track.channel.channel
+		self.name = gp_track.name
+
 		self.notes_on = []
 		self.measures = []
 		#self.measures.append({'num': -1, 'notes':[]})
@@ -50,55 +49,15 @@ class Track:
 		return None
 
 
-	def set_beats_in_mesure(self, m) :
-		ticks = 0
-		self.beats_in_mesure = []
-		#print("mesure : " + str(m))
-		for b in self.get_measure(m).voices[0].beats :
-			tick_duration = TICKS_PER_MEASURE / b.duration.value
-			if b.duration.isDotted:
-				tick_duration += tick_duration / 2
-			ticks += tick_duration
-			self.beats_in_mesure.append(ticks)
-			#print(b.duration)
-			#print(b.notes)
-		#print(self.beats_in_mesure)
-
-	def get_nb_measures(self):
-		return len(self.track.measures)
-
-	def get_measure(self, m):
-		return self.track.measures[m]
-
-	def get_beats_in_measure(self, m) :
-		return self.get_measure(m).voices[0].beats
-
-	def get_next_beat_notes(self, m) :
-		next_id = self.current_beat + 1
-		if next_id == len (self.get_measure(m).voices[0].beats) :
-			if m +1 == self.get_nb_measures() :
-				return None
-			else :
-				return self.notes_to_midi(self.get_measure(m+1).voices[0].beats[0].notes)
-		else:
-			return self.notes_to_midi(self.get_measure(m).voices[0].beats[next_id].notes)
-			
-	def get_beat(self, m) :
-		return self.get_measure(m).voices[0].beats[self.current_beat]
-
-	def notes_to_midi(self, notes) :
-		return [{'value':(self.tuning[note.string - 1] + note.value), 'type':note.type, 'string': note.string} for note in notes]
-
 	def note_to_midi(self, note) :
 		return {'value':(self.tuning[note.string - 1] + note.value), 'type':note.type, 'string': note.string, 'fret':note.value, 'on': False}
 
-	def get_beat_notes(self, m):
-		return [{'value':(self.tuning[note.string - 1] + note.value), 'type':note.type, 'string': note.string} for note in self.get_beat(m).notes]
 
 
 class Guitarician :
 	def __init__(self) :
 		self.outport = None
+		self.screen = None
 
 		self.tracks = []
 
@@ -114,83 +73,68 @@ class Guitarician :
 		self.tempo_modifier = 1.0
 		self.main_track = None
 
-	def play_track(self, track, channel) :
+	def play_track(self, track) :
 		# notes off / on de la mesure
 		notes_off = [note for note in track.measures[self.current_measure]['notes'] if not note['on'] and note['type'] != gp.NoteType.tie]
 		#
 		ticks = self.ticks_in_mesure + self.current_measure * TICKS_PER_MEASURE
 		for n in notes_off :
-			print(n['tick_start'])
 			if ticks >= n['tick_start'] and ticks <= n['tick_stop'] :
-				self.outport.send(Message('note_on', note=n['value'], channel=channel, velocity=track.channel.volume, time=0))
+				self.outport.send(Message('note_on', note=n['value'], channel=track.channel, velocity=track.volume, time=0))
 				n['on'] = True
 				track.notes_on.append(n)
+				if n['value'] == 40 :
+					print(self.ticks_in_mesure)
 		notes_down = []
 		for n in track.notes_on :
 			if ticks > n['tick_stop'] :
-				self.outport.send(Message('note_off', note=n['value'], channel=channel, velocity=track.channel.volume, time=0))
+				self.outport.send(Message('note_off', note=n['value'], channel=track.channel, velocity=track.volume, time=0))
 				n['on'] = False
 				notes_down.append(n)
 		for n in notes_down :
 			track.notes_on.remove(n)
 
-	def beat_on(self, track, channel) :
-		#print(track.get_beat_notes(self.current_measure))
-		for n in track.get_beat_notes(self.current_measure) :
-			if n['type'] != gp.NoteType.tie :
-				self.outport.send(Message('note_on', note=n['value'], channel=channel, velocity=track.channel.volume, time=0))
-				track.notes_on.append(n)
-			
-
-	def beat_off(self, track, channel) :
-		next_notes = track.get_next_beat_notes(self.current_measure)
-		notes_off = []
-		#print(next_notes)
-		for n in track.notes_on :
-			#print(n)
-			if next_notes :
-				tie = next((note for note in next_notes if note['string'] == n['string'] and note['type'] == gp.NoteType.tie), None)
-			else :
-				tie = None
-			#print(tie)
-			if tie == None :
-				self.outport.send(Message('note_off', note=n['value'], channel=channel, velocity=0, time=0))
-				notes_off.append(n)
-		for n in notes_off :
-			track.notes_on.remove(n)
-		#print(track.notes_on)
 
 	def play_synchro(self):
+		ended = False
 		if not self.is_playing :
 			return False
-		ended = False
 		for i, track in enumerate(self.tracks) :
+			self.play_track(track)
 
-			self.play_track(track, i)
-			
-			if track.beats_in_mesure[track.current_beat] <= self.ticks_in_mesure :
-				#self.beat_off(track, i)
-				if track.current_beat < len(track.get_beats_in_measure(self.current_measure)) - 1 :
-					track.current_beat += 1
-					#self.beat_on(track, i)
-
-		self.measure_started = True
 		if(self.ticks_in_mesure >= TICKS_PER_MEASURE):	
-			self.current_measure += 1
-			if self.current_measure == self.tracks[0].get_nb_measures() :
-				ended = True
-			else :
-				for t in self.tracks :
-					t.set_beats_in_mesure(self.current_measure)
-					t.current_beat = 0
-					self.time_in_mesure = 0
-					self.measure_started = False
+				self.current_measure += 1
+				self.time_in_mesure = 0
+				self.ticks_in_mesure = 0
+				if self.current_measure == len(self.tracks[0].measures) :
+					ended = True
+				else :
+					for i, track in enumerate(self.tracks) :
+						self.play_track(track)
 		return ended
+
+	def track_choose(self):
+		choosed = None
+		menu_surf = pygame.Surface((SCREEN_WIDTH/2, SCREEN_HEIGHT/2))
+		for i,t in enumerate(self.tracks):
+			tmenu = self.font.render(t.name, True, (255,255,255))
+			menu_surf.blit(tmenu, (0 , i*20))
+		self.screen.blit(menu_surf, (SCREEN_WIDTH/4, SCREEN_HEIGHT/4))
+		pygame.display.update()
+		while choosed is None:
+			for event in pygame.event.get():
+				if event.type == pygame.MOUSEBUTTONUP:
+					pos = pygame.mouse.get_pos()
+					rel_pos = (pos[0] - SCREEN_WIDTH/4, pos[1] - SCREEN_HEIGHT/4)
+					choosed_id = int(rel_pos[1] / 20)
+					print(choosed_id)
+					choosed = self.tracks[choosed_id]
+		return choosed
 
 	def start(self):
 		pygame.init()
 
-		screen = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
+		self.screen = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
 		pygame.display.set_caption('un test')
 
 		clock = pygame.time.Clock()
@@ -202,12 +146,15 @@ class Guitarician :
 		song = gp.parse('./songbook/daytripper_riff.gp5')
 		self.tempo = song.tempo
 		self.ticks_per_ms = 2000 / self.tempo
-		for i, t in enumerate(song.tracks[0:1]):
+		for i, t in enumerate(song.tracks):
 			track = Track(t)
+			track.volume = 50
 			self.tracks.append(track)
-			self.outport.send(Message('program_change', channel=i, program=track.channel.instrument))
-
-		self.main_track = self.tracks[0]
+			self.outport.send(Message('program_change', channel=track.channel, program=track.midi.instrument))
+			
+		
+		self.main_track = self.track_choose()
+		self.main_track.volume = 100
 		print(self.main_track.measures[0]['notes'])
 		while not ended:
 			for event in pygame.event.get():
@@ -232,8 +179,7 @@ class Guitarician :
 					self.time_in_mesure += clock.get_time()
 					self.ticks_in_mesure = int(self.time_in_mesure / self.ticks_per_ms)
 
-
-			screen.fill((29, 104, 135))
+			self.screen.fill((29, 104, 135))
 			board_height = SCREEN_HEIGHT / 2.2
 			board = pygame.Surface((SCREEN_WIDTH, board_height))
 			board.fill((73,70,71))
@@ -244,9 +190,9 @@ class Guitarician :
 			#print(first_measure)
 			#print(first_measure)
 			for nm in range(-1, 4) :
-				measure_pos = 40 + first_measure + nm * measure_width
+				measure_pos = 100 + first_measure + nm * measure_width
 				img = self.font.render(str(self.current_measure + nm + 1), True, (255,255,255))
-				screen.blit(img, (measure_pos , SCREEN_HEIGHT / 2.5 -20))
+				self.screen.blit(img, (measure_pos , SCREEN_HEIGHT / 2.5 -20))
 				pygame.draw.line(board, (29,104,135), (measure_pos,0), (measure_pos,board_height), 3)
 				for nt in range(3) :
 					temp_pos = measure_pos + ((nt + 1) * measure_width / 4)
@@ -272,15 +218,16 @@ class Guitarician :
 						continue
 					note_width = int((n['tick_stop'] - n['tick_start']) * tick_width)
 					note_heigt = int(space_string)
-					note_x = 40 + first_measure + nm * measure_width + (n['tick_start'] - (self.current_measure + nm) * TICKS_PER_MEASURE) * tick_width
+					note_x = 100 + first_measure + nm * measure_width + (n['tick_start'] - (self.current_measure + nm) * TICKS_PER_MEASURE) * tick_width
 					note_y = (n['string'] - 1) * space_string
 					pygame.draw.ellipse(board, (120,70,200), (note_x, note_y, note_width, note_heigt))
 					img = self.font.render(str(n['fret']), True, (255,255,255))
 					board.blit(img, (note_x + note_width / 2 - img.get_rect().width / 2, note_y + note_heigt / 3))
 			
-			screen.blit(board, (0,SCREEN_HEIGHT / 2.5))
-			pygame.draw.line(screen, (255,170,100), (40, SCREEN_HEIGHT / 2.5 - 20), (40, SCREEN_HEIGHT / 2.5 + board_height + 20), width=2)
+			self.screen.blit(board, (0,SCREEN_HEIGHT / 2.5))
+			pygame.draw.line(self.screen, (255,170,100), (100, SCREEN_HEIGHT / 2.5 - 20), (100, SCREEN_HEIGHT / 2.5 + board_height + 20), width=2)
 			pygame.display.flip()
+
 			if not ended :
 				ended = self.play_synchro()	
 				

@@ -1,0 +1,7 @@
+001 : launcher pour choisir le fichier
+002 : pause
+003 : menu lecture / pause [002]
+004 : tick changement tempo
+005 : menu tempo
+006 : groupe de note = stroke
+007 : nom accord d'un stroke

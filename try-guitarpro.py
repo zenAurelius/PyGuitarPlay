@@ -9,7 +9,10 @@ print(demo.tempo)
 #	print(mh.timeSignature)
 for t in demo.tracks :
 	print(t.name)
+	print(t.channel)
+	print(t.isPercussionTrack)
 
+'''
 g = demo.tracks[0]
 for s in g.strings :
 	print(s)
@@ -25,3 +28,4 @@ for b in v.beats :
 	print(b.duration)
 	print(b.notes)
 	print()
+'''
