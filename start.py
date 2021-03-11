@@ -237,8 +237,14 @@ class Guitarician :
 			
 			self.screen.blit(board, (0,SCREEN_HEIGHT / 2.5))
 			pygame.draw.line(self.screen, (255,170,100), (100, SCREEN_HEIGHT / 2.5 - 20), (100, SCREEN_HEIGHT / 2.5 + board_height + 20), width=2)
-			pygame.display.flip()
+			
 
+			# CONTROLS
+			controls = pygame.Surface((SCREEN_WIDTH / 5, 50))
+			controls.fill((200,200,200))
+			self.screen.blit(controls, (2 * SCREEN_WIDTH / 5, SCREEN_HEIGHT / 2.5 + board_height + 20 ))
+
+			pygame.display.flip()
 			if not ended :
 				ended = self.play_synchro()	
 				
