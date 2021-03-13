@@ -1,8 +1,10 @@
+"""Play with Tab"""
+import json
 import pygame
 import guitarpro as gp
 import mido
 from mido import Message
-import json
+
 
 TICKS_PER_MEASURE = 120
 
@@ -13,6 +15,7 @@ NB_EMPTY_MEASURE = 2
 
 
 class Track:
+    """A track to play (midi) and/or to play with"""
     def __init__(self, gp_track):
         self.tuning = [s.value for s in gp_track.strings]
         self.midi = gp_track.channel
@@ -63,6 +66,7 @@ class Track:
 
 class Guitarician:
     def __init__(self):
+        self.font = None
         self.outport = None
         self.screen = None
 
@@ -84,25 +88,80 @@ class Guitarician:
             self.params = json.load(json_file)
 
     def play_track(self, track):
-        # notes off / on de la mesure
-        notes_off = [note for note in track.measures[self.current_measure]['notes'] if not note['on'] and note['type'] != gp.NoteType.tie]
-        #
+        # notes off de la mesure
+        notes_off = [note
+                     for note
+                     in track.measures[self.current_measure]['notes']
+                     if not note['on'] and note['type'] != gp.NoteType.tie]
+
         ticks = self.ticks_in_mesure + self.current_measure * TICKS_PER_MEASURE
-        for n in notes_off:
-            if ticks >= n['tick_start'] and ticks <= n['tick_stop']:
-                self.outport.send(Message('note_on', note=n['value'], channel=track.channel, velocity=track.volume, time=0))
-                n['on'] = True
-                track.notes_on.append(n)
-                if n['value'] == 40:
+        for note in notes_off:
+            if note['tick_start'] <= ticks <= note['tick_stop']:
+                self.note_on(track, note)
+                note['on'] = True
+                track.notes_on.append(note)
+                if note['value'] == 40:
                     print(self.ticks_in_mesure)
         notes_down = []
         for n in track.notes_on:
             if ticks > n['tick_stop']:
-                self.outport.send(Message('note_off', note=n['value'], channel=track.channel, velocity=track.volume, time=0))
+                self.note_off(track, n)
                 n['on'] = False
                 notes_down.append(n)
         for n in notes_down:
             track.notes_on.remove(n)
+
+    def accelerate_tempo(self, value=None):
+        """ Accelere le tempo
+
+        De 10% de la valeur initiale, sauf si une valeur spécifique est donnée
+        """
+        # TODO : Prendre en compte value pour setter tempo à une valeur donnée
+        self.tempo_modifier += 0.1
+        self.ticks_per_ms = 2000 / (self.tempo * self.tempo_modifier)
+
+    def slowdown_tempo(self, value=None):
+        """ Ralenti le tempo
+
+        De 10% de la valeur initiale, sauf si une valeur spécifique est donnée
+        """
+        # TODO : Prendre en compte value pour setter tempo à une valeur donnée
+        self.tempo_modifier -= 0.1
+        self.ticks_per_ms = 2000 / (self.tempo * self.tempo_modifier)
+
+    def pause_play(self):
+        """Pause the game"""
+        self.is_playing = False
+        # Stop every notes playing
+        for track in self.tracks:
+            for note in track.notes_on:
+                self.note_off(track, note)
+
+    def start_play(self):
+        """Start or restart the game"""
+        self.is_playing = True
+        # If it was a pause, there is notes playing that we have to 'restart'
+        for track in self.tracks:
+            for note in track.notes_on:
+                self.note_on(track, note)
+
+    def note_on(self, track, note):
+        """Start a midi note"""
+        on_msg = Message('note_on',
+                         note=note['value'],
+                         channel=track.channel,
+                         velocity=track.volume,
+                         time=0)
+        self.outport.send(on_msg)
+
+    def note_off(self, track, note):
+        """Stop a midi note"""
+        off_msg = Message('note_off',
+                          note=note['value'],
+                          channel=track.channel,
+                          velocity=track.volume,
+                          time=0)
+        self.outport.send(off_msg)
 
     def play_synchro(self):
         ended = False
@@ -111,7 +170,7 @@ class Guitarician:
         for track in self.tracks:
             self.play_track(track)
 
-        if(self.ticks_in_mesure >= TICKS_PER_MEASURE):
+        if self.ticks_in_mesure >= TICKS_PER_MEASURE:
             self.current_measure += 1
             self.time_in_mesure = 0
             self.ticks_in_mesure = 0
@@ -149,8 +208,9 @@ class Guitarician:
         clock = pygame.time.Clock()
         ended = False
 
-        self.outport = mido.open_output()
         self.font = pygame.font.SysFont(None, 24)
+        self.outport = mido.open_output()
+
         # Read file, get all notes, convert to something midi compatible
         song = gp.parse('./songbook/' + self.params['file'])
         self.tempo = song.tempo
@@ -163,24 +223,21 @@ class Guitarician:
 
         self.main_track = self.track_choose()
         self.main_track.volume = 100
-        print(self.main_track.measures[0]['notes'])
         while not ended:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     ended = True
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_KP_MINUS:
-                        print('slow')
-                        self.tempo_modifier -= 0.1
-                        self.ticks_per_ms = 2000 / (self.tempo * self.tempo_modifier)
+                        self.slowdown_tempo()
                     elif event.key == pygame.K_KP_PLUS:
-                        print('slow')
-                        self.tempo_modifier += 0.1
-                        self.ticks_per_ms = 2000 / (self.tempo * self.tempo_modifier)
+                        self.accelerate_tempo()
                     else:
-                        self.is_playing = True
+                        if self.is_playing:
+                            self.pause_play()
+                        else:
+                            self.start_play()
 
-            self.ticks_in_mesure = 0
             if not ended:
                 # print(self.is_playing)
                 if self.is_playing:
