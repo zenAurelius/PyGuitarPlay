@@ -4,12 +4,14 @@ import pygame
 import guitarpro as gp
 import mido
 from mido import Message
+from MenuItem import MenuItem
 
 
 TICKS_PER_MEASURE = 120
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
+BACKGROUND_COLOR = (29, 104, 135)
 
 NB_EMPTY_MEASURE = 2
 
@@ -84,6 +86,8 @@ class Guitarician:
         self.tempo_modifier = 1.0
         self.main_track = None
 
+        self.menus = []
+
         with open('params.json') as json_file:
             self.params = json.load(json_file)
 
@@ -129,6 +133,13 @@ class Guitarician:
         self.tempo_modifier -= 0.1
         self.ticks_per_ms = 2000 / (self.tempo * self.tempo_modifier)
 
+    def toogle_playing(self):
+        """Start or pause the play"""
+        if self.is_playing:
+            self.pause_play()
+        else:
+            self.start_play()
+
     def pause_play(self):
         """Pause the game"""
         self.is_playing = False
@@ -136,6 +147,8 @@ class Guitarician:
         for track in self.tracks:
             for note in track.notes_on:
                 self.note_off(track, note)
+        self.get_menu_item('play').is_visible = True
+        self.get_menu_item('pause').is_visible = False
 
     def start_play(self):
         """Start or restart the game"""
@@ -144,6 +157,9 @@ class Guitarician:
         for track in self.tracks:
             for note in track.notes_on:
                 self.note_on(track, note)
+        self.get_menu_item('play').is_visible = False
+        self.get_menu_item('pause').is_visible = True
+
 
     def note_on(self, track, note):
         """Start a midi note"""
@@ -223,20 +239,24 @@ class Guitarician:
 
         self.main_track = self.track_choose()
         self.main_track.volume = 100
+
+        # INIT MENUS
+        self.init_menus()
+
+        # MAIN LOOP
         while not ended:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     ended = True
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    self.handle_click_menu(event.pos)
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_KP_MINUS:
                         self.slowdown_tempo()
                     elif event.key == pygame.K_KP_PLUS:
                         self.accelerate_tempo()
-                    else:
-                        if self.is_playing:
-                            self.pause_play()
-                        else:
-                            self.start_play()
+                    elif event.key == pygame.K_SPACE:
+                        self.toogle_playing()
 
             if not ended:
                 # print(self.is_playing)
@@ -244,7 +264,7 @@ class Guitarician:
                     self.time_in_mesure += clock.get_time()
                     self.ticks_in_mesure = int(self.time_in_mesure / self.ticks_per_ms)
 
-            self.screen.fill((29, 104, 135))
+            self.screen.fill(BACKGROUND_COLOR)
             board_height = SCREEN_HEIGHT / 2.2
             board = pygame.Surface((SCREEN_WIDTH, board_height))
             board.fill((73, 70, 71))
@@ -296,9 +316,7 @@ class Guitarician:
             pygame.draw.line(self.screen, (255, 170, 100), (100, SCREEN_HEIGHT / 2.5 - 20), (100, SCREEN_HEIGHT / 2.5 + board_height + 20), width=2)
 
             # CONTROLS
-            controls = pygame.Surface((SCREEN_WIDTH / 5, 50))
-            controls.fill((200, 200, 200))
-            self.screen.blit(controls, (2 * SCREEN_WIDTH / 5, SCREEN_HEIGHT / 2.5 + board_height + 20))
+            self.draw_menu_controls()
 
             pygame.display.flip()
             if not ended:
@@ -309,6 +327,47 @@ class Guitarician:
         self.outport.close()
         pygame.quit()
         quit()
+
+    def init_menus(self):
+        # Bouton play :
+        play_surf = pygame.Surface((50, 50))
+        play_x = 2 * SCREEN_WIDTH / 5
+        play_y = SCREEN_HEIGHT / 2.5 + SCREEN_HEIGHT / 2.2 + 20
+        play_surf.fill(BACKGROUND_COLOR)
+        pygame.draw.polygon(play_surf, (255, 255, 255), [(5, 10), (5, 40), (30, 25)])
+        menu_item = MenuItem('play', play_surf, (play_x, play_y))
+        menu_item.callback = self.start_play
+        self.menus.append(menu_item)
+        # Bouton pause :
+        pause_surf = pygame.Surface((50, 50))
+        pause_x = 2 * SCREEN_WIDTH / 5
+        pause_y = SCREEN_HEIGHT / 2.5 + SCREEN_HEIGHT / 2.2 + 20
+        pause_surf.fill(BACKGROUND_COLOR)
+        pygame.draw.rect(pause_surf, (255, 255, 255), ((5, 10), (11, 30)))
+        pygame.draw.rect(pause_surf, (255, 255, 255), ((20, 10), (11, 30)))
+        menu_item = MenuItem('pause', pause_surf, (pause_x, pause_y))
+        menu_item.callback = self.pause_play
+        menu_item.is_visible = False
+        self.menus.append(menu_item)
+
+    def draw_menu_controls(self):
+        """Draw all the visible menu item""""
+        for menu_item in self.menus:
+            menu_item.draw_on(self.screen)
+
+    def handle_click_menu(self, point):
+        """Find the clicked menu item and send the callback of this item"""
+        clicked = next(menu_item for menu_item in self.menus
+                       if menu_item.is_clicked(point))
+        if clicked is not None:
+            clicked.callback()
+
+    def get_menu_item(self, name):
+        """Find the menu item by its name"""
+        for menu_item in self.menus:
+            if menu_item.name == name:
+                return menu_item
+        return None
 
 
 if __name__ == '__main__':
